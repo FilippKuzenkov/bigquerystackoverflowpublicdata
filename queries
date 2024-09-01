@@ -153,21 +153,21 @@ if response6 is not None:
 
 query7 = """
 WITH sampled_answers AS (
-  SELECT owner_user_id, parent_id
+  SELECT id, owner_user_id, parent_id
   FROM `bigquery-public-data.stackoverflow.posts_answers`
   WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
-  AND RAND() < 0.05  -- 5% sample
+    AND RAND() < 0.05  -- 5% sample
 )
-SELECT 
-  a.owner_user_id,
-  COUNT(*) AS accepted_answer_count
+SELECT a.owner_user_id, COUNT(*) AS accepted_answer_count
 FROM sampled_answers a
 JOIN `bigquery-public-data.stackoverflow.posts_questions` q
-ON a.parent_id = q.id AND a.id = q.accepted_answer_id
+ON a.parent_id = q.id 
+  AND a.id = q.accepted_answer_id
 GROUP BY a.owner_user_id
 ORDER BY accepted_answer_count DESC
 LIMIT 10
 """
+
 response7 = run_query(query7)
 if response7 is not None:
     print(response7)
@@ -303,27 +303,6 @@ if response13 is not None:
 
 query14 = """
 WITH sampled_questions AS (
-  SELECT score, view_count
-  FROM `bigquery-public-data.stackoverflow.posts_questions`
-  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
-  AND RAND() < 0.05  -- 5% sample
-)
-SELECT
-  COUNT(*) AS n,
-  AVG(score) AS mean_score,
-  AVG(view_count) AS mean_views,
-  STDDEV(score) AS stddev_score,
-  STDDEV(view_count) AS stddev_views,
-  SUM((score - AVG(score)) * (view_count - AVG(view_count))) / (COUNT(*) - 1) AS covariance,
-  CORR(score, view_count) AS correlation
-FROM sampled_questions
-"""
-response14 = run_query(query14)
-if response14 is not None:
-    print(response14)
-
-query15 = """
-WITH sampled_questions AS (
   SELECT owner_user_id
   FROM `bigquery-public-data.stackoverflow.posts_questions`
   WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
@@ -337,6 +316,6 @@ GROUP BY owner_user_id
 ORDER BY question_count DESC
 LIMIT 10
 """
-response15 = run_query(query15)
-if response15 is not None:
-    print(response15)
+response14 = run_query(query14)
+if response14 is not None:
+    print(response14)
