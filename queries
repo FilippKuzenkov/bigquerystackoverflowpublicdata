@@ -1,0 +1,342 @@
+from google.cloud import bigquery
+import pandas as pd
+
+# Initialize the client
+client = bigquery.Client()
+
+def run_query(query):
+    try:
+        query_job = client.query(query)
+        results = query_job.result()
+        return results.to_dataframe()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
+import bq_helper
+from bq_helper import BigQueryHelper
+# https://www.kaggle.com/sohier/introduction-to-the-bq-helper-package
+stackOverflow = bq_helper.BigQueryHelper(active_project="bigquery-public-data",
+                                   dataset_name="stackoverflow")
+
+query1 = """
+WITH sampled_questions AS (
+  SELECT *
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.01  -- 1% sample
+)
+SELECT
+  COUNT(*) AS Total_Questions,
+  COUNTIF(accepted_answer_id IS NOT NULL) AS Questions_With_Accepted_Answers,
+  ROUND(100 * COUNTIF(accepted_answer_id IS NOT NULL) / COUNT(*), 1) AS Percent_With_Accepted_Answers
+FROM sampled_questions
+WHERE ENDS_WITH(title, '?')
+"""
+response1 = run_query(query1)
+if response1 is not None:
+    print(response1)
+
+query2 = """
+WITH sampled_questions AS (
+  SELECT *
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.05  -- 5% sample
+)
+SELECT
+  tag,
+  COUNT(*) AS Total_Questions,
+  COUNTIF(accepted_answer_id IS NOT NULL) AS Accepted_Answers,
+  ROUND(100 * COUNTIF(accepted_answer_id IS NOT NULL) / COUNT(*), 1) AS Percent_Accepted
+FROM sampled_questions,
+UNNEST(SPLIT(tags, '|')) AS tag
+GROUP BY tag
+HAVING Total_Questions > 100  -- Filter out less common tags
+ORDER BY Percent_Accepted DESC
+LIMIT 10
+"""
+response2 = run_query(query2)
+if response2 is not None:
+    print(response2)
+
+query3 = """
+WITH sampled_questions AS (
+  SELECT *
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.05  -- 5% sample
+),
+question_answer_times AS (
+  SELECT
+    q.id AS question_id,
+    q.creation_date AS question_date,
+    MIN(a.creation_date) AS first_answer_date,
+    SPLIT(q.tags, '|') AS tag_list
+  FROM sampled_questions q
+  LEFT JOIN `bigquery-public-data.stackoverflow.posts_answers` a
+  ON q.id = a.parent_id
+  GROUP BY q.id, q.creation_date, q.tags
+)
+SELECT
+  tag,
+  COUNT(*) AS Total_Questions,
+  AVG(TIMESTAMP_DIFF(first_answer_date, question_date, MINUTE)) AS Avg_Minutes_To_First_Answer
+FROM question_answer_times,
+UNNEST(tag_list) AS tag
+WHERE first_answer_date IS NOT NULL
+GROUP BY tag
+HAVING Total_Questions > 100  -- Filter out less common tags
+ORDER BY Avg_Minutes_To_First_Answer
+LIMIT 10
+"""
+response3 = run_query(query3)
+if response3 is not None:
+    print(response)
+
+query4 = """
+WITH sampled_questions AS (
+  SELECT *
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.05  -- 5% sample
+)
+SELECT
+  tag,
+  COUNT(*) AS Total_Questions,
+  AVG(answer_count) AS Avg_Answers
+FROM sampled_questions,
+UNNEST(SPLIT(tags, '|')) AS tag
+GROUP BY tag
+HAVING Total_Questions > 100  -- Filter out less common tags
+ORDER BY Avg_Answers DESC
+LIMIT 10
+"""
+response4 = run_query(query4)
+if response4 is not None:
+    print(response)
+
+query5 = """
+SELECT id, title, view_count
+FROM `bigquery-public-data.stackoverflow.posts_questions`
+WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+ORDER BY view_count DESC
+LIMIT 10
+"""
+response5 = run_query(query5)
+if response5 is not None:
+    print(response5)
+
+query6 = """
+WITH sampled_questions AS (
+  SELECT score
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.05  -- 5% sample
+)
+SELECT 
+  CASE
+    WHEN score < 0 THEN 'Negative'
+    WHEN score = 0 THEN 'Zero'
+    WHEN score BETWEEN 1 AND 5 THEN '1 to 5'
+    WHEN score BETWEEN 6 AND 20 THEN '6 to 20'
+    ELSE 'Above 20'
+  END AS score_range,
+  COUNT(*) AS question_count
+FROM sampled_questions
+GROUP BY score_range
+ORDER BY question_count DESC
+"""
+response6 = run_query(query6)
+if response6 is not None:
+    print(response6)
+
+query7 = """
+WITH sampled_answers AS (
+  SELECT owner_user_id, parent_id
+  FROM `bigquery-public-data.stackoverflow.posts_answers`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.05  -- 5% sample
+)
+SELECT 
+  a.owner_user_id,
+  COUNT(*) AS accepted_answer_count
+FROM sampled_answers a
+JOIN `bigquery-public-data.stackoverflow.posts_questions` q
+ON a.parent_id = q.id AND a.id = q.accepted_answer_id
+GROUP BY a.owner_user_id
+ORDER BY accepted_answer_count DESC
+LIMIT 10
+"""
+response7 = run_query(query7)
+if response7 is not None:
+    print(response7)
+
+query8 = """
+WITH sampled_questions AS (
+  SELECT id, comment_count
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.05  -- 5% sample
+)
+SELECT AVG(comment_count) AS avg_comments_per_question
+FROM sampled_questions
+"""
+response8 = run_query(query8)
+if response8 is not None:
+    print(response8)
+
+query9 = """
+WITH sampled_questions AS (
+  SELECT LOWER(title) AS title
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.01  -- 1% sample
+),
+words AS (
+  SELECT word
+  FROM sampled_questions, UNNEST(SPLIT(title, ' ')) AS word
+  WHERE LENGTH(word) > 3  -- Exclude short words (often stop words)
+    AND word NOT IN ('what', 'how', 'why', 'when', 'where', 'which', 'who', 'whom')  -- Exclude common question words
+)
+SELECT word, COUNT(*) AS word_count
+FROM words
+GROUP BY word
+ORDER BY word_count DESC
+LIMIT 10
+"""
+response9 = run_query(query9)
+if response9 is not None:
+    print(response9)
+
+query10 = """
+WITH sampled_users AS (
+  SELECT id, creation_date
+  FROM `bigquery-public-data.stackoverflow.users`
+  WHERE RAND() < 0.01  -- 1% sample
+),
+first_questions AS (
+  SELECT owner_user_id, MIN(creation_date) AS first_question_date
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  GROUP BY owner_user_id
+)
+SELECT AVG(TIMESTAMP_DIFF(q.first_question_date, u.creation_date, DAY)) AS avg_days_to_first_question
+FROM sampled_users u
+JOIN first_questions q ON u.id = q.owner_user_id
+"""
+response10 = run_query(query10)
+if response10 is not None:
+    print(response10)
+
+query11 = """
+WITH sampled_questions AS (
+  SELECT tags
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.05  -- 5% sample
+),
+tag_pairs AS (
+  SELECT 
+    SPLIT(tags, '|') AS tag_list
+  FROM sampled_questions
+),
+all_pairs AS (
+  SELECT
+    CASE WHEN tag1 < tag2 THEN tag1 ELSE tag2 END AS tag1,
+    CASE WHEN tag1 < tag2 THEN tag2 ELSE tag1 END AS tag2
+  FROM tag_pairs, UNNEST(tag_list) AS tag1, UNNEST(tag_list) AS tag2
+  WHERE tag1 != tag2
+)
+SELECT tag1, tag2, COUNT(*) AS pair_count
+FROM all_pairs
+GROUP BY tag1, tag2
+ORDER BY pair_count DESC
+LIMIT 10
+"""
+response11 = run_query(query11)
+if response11 is not None:
+    print(response11)
+
+query12 = """
+WITH sampled_questions AS (
+  SELECT answer_count
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.05  -- 5% sample
+)
+SELECT 
+  CASE
+    WHEN answer_count = 0 THEN 'No answers'
+    WHEN answer_count = 1 THEN '1 answer'
+    WHEN answer_count BETWEEN 2 AND 5 THEN '2 to 5 answers'
+    WHEN answer_count BETWEEN 6 AND 10 THEN '6 to 10 answers'
+    ELSE 'More than 10 answers'
+  END AS answer_range,
+  COUNT(*) AS question_count
+FROM sampled_questions
+GROUP BY answer_range
+ORDER BY question_count DESC
+"""
+response12 = run_query(query12)
+if response12 is not None:
+    print(response12)
+
+query13 = """
+WITH sampled_questions AS (
+  SELECT creation_date
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.05  -- 5% sample
+)
+SELECT 
+  FORMAT_DATE('%A', creation_date) AS day_of_week,
+  COUNT(*) AS question_count
+FROM sampled_questions
+GROUP BY day_of_week
+ORDER BY question_count DESC
+LIMIT 10
+"""
+response13 = run_query(query13)
+if response13 is not None:
+    print(response13)
+
+query14 = """
+WITH sampled_questions AS (
+  SELECT score, view_count
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.05  -- 5% sample
+)
+SELECT
+  COUNT(*) AS n,
+  AVG(score) AS mean_score,
+  AVG(view_count) AS mean_views,
+  STDDEV(score) AS stddev_score,
+  STDDEV(view_count) AS stddev_views,
+  SUM((score - AVG(score)) * (view_count - AVG(view_count))) / (COUNT(*) - 1) AS covariance,
+  CORR(score, view_count) AS correlation
+FROM sampled_questions
+"""
+response14 = run_query(query14)
+if response14 is not None:
+    print(response14)
+
+query15 = """
+WITH sampled_questions AS (
+  SELECT owner_user_id
+  FROM `bigquery-public-data.stackoverflow.posts_questions`
+  WHERE creation_date BETWEEN '2018-01-01' AND '2018-12-31'
+  AND RAND() < 0.05  -- 5% sample
+)
+SELECT
+  owner_user_id,
+  COUNT(*) AS question_count
+FROM sampled_questions
+GROUP BY owner_user_id
+ORDER BY question_count DESC
+LIMIT 10
+"""
+response15 = run_query(query15)
+if response15 is not None:
+    print(response15)
